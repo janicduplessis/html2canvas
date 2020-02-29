@@ -44,6 +44,7 @@ import {overflow, OVERFLOW} from './property-descriptors/overflow';
 import {overflowWrap} from './property-descriptors/overflow-wrap';
 import {paddingBottom, paddingLeft, paddingRight, paddingTop} from './property-descriptors/padding';
 import {textAlign} from './property-descriptors/text-align';
+import {paintOrder, PaintOrder} from './property-descriptors/paint-order';
 import {position, POSITION} from './property-descriptors/position';
 import {textShadow} from './property-descriptors/text-shadow';
 import {textTransform} from './property-descriptors/text-transform';
@@ -60,6 +61,8 @@ import {image} from './types/image';
 import {opacity} from './property-descriptors/opacity';
 import {textDecorationColor} from './property-descriptors/text-decoration-color';
 import {textDecorationLine} from './property-descriptors/text-decoration-line';
+import {textStrokeColor} from './property-descriptors/text-stroke-color';
+import {textStrokeWidth} from './property-descriptors/text-stroke-width';
 import {isLengthPercentage, LengthPercentage, ZERO_LENGTH} from './types/length-percentage';
 import {fontFamily} from './property-descriptors/font-family';
 import {fontSize} from './property-descriptors/font-size';
@@ -125,11 +128,14 @@ export class CSSParsedDeclaration {
     paddingRight: LengthPercentage;
     paddingBottom: LengthPercentage;
     paddingLeft: LengthPercentage;
+    paintOrder: PaintOrder;
     position: ReturnType<typeof position.parse>;
     textAlign: ReturnType<typeof textAlign.parse>;
     textDecorationColor: Color;
     textDecorationLine: ReturnType<typeof textDecorationLine.parse>;
     textShadow: ReturnType<typeof textShadow.parse>;
+    textStrokeColor: Color;
+    textStrokeWidth: ReturnType<typeof textStrokeWidth.parse>;
     textTransform: ReturnType<typeof textTransform.parse>;
     transform: ReturnType<typeof transform.parse>;
     transformOrigin: ReturnType<typeof transformOrigin.parse>;
@@ -189,11 +195,15 @@ export class CSSParsedDeclaration {
         this.paddingRight = parse(paddingRight, declaration.paddingRight);
         this.paddingBottom = parse(paddingBottom, declaration.paddingBottom);
         this.paddingLeft = parse(paddingLeft, declaration.paddingLeft);
+        // @ts-ignore
+        this.paintOrder = parse(paintOrder, declaration.paintOrder);
         this.position = parse(position, declaration.position);
         this.textAlign = parse(textAlign, declaration.textAlign);
         this.textDecorationColor = parse(textDecorationColor, declaration.textDecorationColor || declaration.color);
         this.textDecorationLine = parse(textDecorationLine, declaration.textDecorationLine);
         this.textShadow = parse(textShadow, declaration.textShadow);
+        this.textStrokeColor = parse(textStrokeColor, declaration.webkitTextStrokeColor);
+        this.textStrokeWidth = parse(textStrokeWidth, declaration.webkitTextStrokeWidth);
         this.textTransform = parse(textTransform, declaration.textTransform);
         this.transform = parse(transform, declaration.transform);
         this.transformOrigin = parse(transformOrigin, declaration.transformOrigin);
@@ -291,5 +301,5 @@ const parse = (descriptor: CSSPropertyDescriptor<any>, style?: string | null) =>
             }
     }
 
-    throw new Error(`Attempting to parse unsupported css format type ${descriptor.format}`);
+    throw new Error(`Attempting to parse unsupported css format type ${descriptor}`);
 };

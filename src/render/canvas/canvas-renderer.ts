@@ -38,6 +38,7 @@ import {TextareaElementContainer} from '../../dom/elements/textarea-element-cont
 import {SelectElementContainer} from '../../dom/elements/select-element-container';
 import {IFrameElementContainer} from '../../dom/replaced-elements/iframe-element-container';
 import {TextShadow} from '../../css/property-descriptors/text-shadow';
+import {PAINT_LAYER} from '../../css/property-descriptors/paint-order';
 
 export type RenderConfigurations = RenderOptions & {
     backgroundColor: Color | null;
@@ -140,13 +141,64 @@ export class CanvasRenderer {
         }
     }
 
-    renderTextWithLetterSpacing(text: TextBounds, letterSpacing: number) {
+    renderTextWithLetterSpacing(text: TextBounds, styles: CSSParsedDeclaration) {
+        styles.paintOrder.forEach(layer => {
+            switch (layer) {
+                case PAINT_LAYER.FILL:
+                    this.renderWithLetterSpacing(text, styles.letterSpacing, (t, x, y) => {
+                        this.ctx.fillText(t, x, y);
+                    });
+                    const textShadows: TextShadow = styles.textShadow;
+
+                    if (textShadows.length && text.text.trim().length) {
+                        textShadows
+                            .slice(0)
+                            .reverse()
+                            .forEach(textShadow => {
+                                this.ctx.shadowColor = asString(textShadow.color);
+                                this.ctx.shadowOffsetX = textShadow.offsetX.number * this.options.scale;
+                                this.ctx.shadowOffsetY = textShadow.offsetY.number * this.options.scale;
+                                this.ctx.shadowBlur = textShadow.blur.number;
+
+                                this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + text.bounds.height);
+                            });
+
+                        this.ctx.shadowColor = '';
+                        this.ctx.shadowOffsetX = 0;
+                        this.ctx.shadowOffsetY = 0;
+                        this.ctx.shadowBlur = 0;
+                    }
+                    break;
+                case PAINT_LAYER.STROKE:
+                    if (styles.textStrokeWidth > 0) {
+                        const initialStrokeStyle = this.ctx.strokeStyle;
+                        const intialLineWidth = this.ctx.lineWidth;
+                        this.ctx.strokeStyle = styles.textStrokeColor.toString();
+                        this.ctx.lineWidth = styles.textStrokeWidth;
+                        this.renderWithLetterSpacing(text, styles.letterSpacing, (t, x, y) => {
+                            this.ctx.strokeText(t, x, y);
+                        });
+                        this.ctx.strokeStyle = initialStrokeStyle;
+                        this.ctx.lineWidth = intialLineWidth;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        });
+    }
+
+    private renderWithLetterSpacing(
+        text: TextBounds,
+        letterSpacing: number,
+        render: (text: string, x: number, y: number) => void
+    ) {
         if (letterSpacing === 0) {
-            this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + text.bounds.height);
+            render(text.text, text.bounds.left, text.bounds.top + text.bounds.height);
         } else {
             const letters = toCodePoints(text.text).map(i => fromCodePoint(i));
             letters.reduce((left, letter) => {
-                this.ctx.fillText(letter, left, text.bounds.top + text.bounds.height);
+                render(letter, left, text.bounds.top + text.bounds.height);
 
                 return left + this.ctx.measureText(letter).width;
             }, text.bounds.left);
@@ -176,27 +228,7 @@ export class CanvasRenderer {
 
         text.textBounds.forEach(text => {
             this.ctx.fillStyle = asString(styles.color);
-            this.renderTextWithLetterSpacing(text, styles.letterSpacing);
-            const textShadows: TextShadow = styles.textShadow;
-
-            if (textShadows.length && text.text.trim().length) {
-                textShadows
-                    .slice(0)
-                    .reverse()
-                    .forEach(textShadow => {
-                        this.ctx.shadowColor = asString(textShadow.color);
-                        this.ctx.shadowOffsetX = textShadow.offsetX.number * this.options.scale;
-                        this.ctx.shadowOffsetY = textShadow.offsetY.number * this.options.scale;
-                        this.ctx.shadowBlur = textShadow.blur.number;
-
-                        this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + text.bounds.height);
-                    });
-
-                this.ctx.shadowColor = '';
-                this.ctx.shadowOffsetX = 0;
-                this.ctx.shadowOffsetY = 0;
-                this.ctx.shadowBlur = 0;
-            }
+            this.renderTextWithLetterSpacing(text, styles);
 
             if (styles.textDecorationLine.length) {
                 this.ctx.fillStyle = asString(styles.textDecorationColor || styles.color);
@@ -393,7 +425,7 @@ export class CanvasRenderer {
             ]);
 
             this.ctx.clip();
-            this.renderTextWithLetterSpacing(new TextBounds(container.value, textBounds), styles.letterSpacing);
+            this.renderTextWithLetterSpacing(new TextBounds(container.value, textBounds), styles);
             this.ctx.restore();
             this.ctx.textBaseline = 'bottom';
             this.ctx.textAlign = 'left';
@@ -425,7 +457,7 @@ export class CanvasRenderer {
                     computeLineHeight(styles.lineHeight, styles.fontSize.number) / 2 + 1
                 );
 
-                this.renderTextWithLetterSpacing(new TextBounds(paint.listValue, bounds), styles.letterSpacing);
+                this.renderTextWithLetterSpacing(new TextBounds(paint.listValue, bounds), styles);
                 this.ctx.textBaseline = 'bottom';
                 this.ctx.textAlign = 'left';
             }
